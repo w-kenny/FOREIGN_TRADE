@@ -1,0 +1,340 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum InquiryStatus {
+  NEW
+  IN_PROGRESS
+  REPLIED
+  CLOSED
+}
+
+enum InquiryNoteType {
+  NOTE
+  REPLY
+}
+
+enum AdminRole {
+  OWNER
+  EDITOR
+}
+
+/// 后台管理员表
+model AdminUser {
+  /// 管理员主键
+  id           Int      @id @default(autoincrement())
+  /// 登录邮箱
+  email        String   @unique @db.VarChar(190)
+  /// 加密后的登录密码
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  /// 管理员姓名
+  name         String   @default("Administrator") @db.VarChar(100)
+  /// 管理员角色
+  role         AdminRole @default(OWNER)
+  /// 是否允许登录
+  isActive     Boolean  @default(true) @map("is_active")
+  /// 最后登录时间
+  lastLoginAt  DateTime? @map("last_login_at")
+  /// 创建时间
+  createdAt    DateTime @default(now()) @map("created_at")
+  /// 最后更新时间
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  /// 操作日志
+  operationLogs OperationLog[]
+  /// 询盘处理记录
+  inquiryNotes InquiryNote[]
+
+  @@map("admin_users")
+}
+
+/// 产品分类表
+model ProductCategory {
+  /// 分类主键
+  id        Int       @id @default(autoincrement())
+  /// 分类 URL 标识
+  slug      String    @unique @db.VarChar(120)
+  /// 分类名称
+  name      String    @db.VarChar(120)
+  /// 分类中文名称
+  nameCn    String    @map("name_cn") @db.VarChar(120)
+  /// 创建时间
+  createdAt DateTime  @default(now()) @map("created_at")
+  /// 最后更新时间
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  /// 分类下的产品
+  products  Product[]
+
+  @@map("product_categories")
+}
+
+/// 产品主表
+model Product {
+  /// 产品主键
+  id             Int             @id @default(autoincrement())
+  /// 产品 URL 标识
+  slug           String          @unique @db.VarChar(190)
+  /// 产品状态：草稿、已发布、已下架
+  status         ProductStatus   @default(DRAFT)
+  /// 产品编号 / SKU
+  sku            String?         @unique @db.VarChar(100)
+  /// 所属分类 ID
+  categoryId     Int             @map("category_id")
+  /// 最小起订量
+  moq            String?         @db.VarChar(100)
+  /// 预计交期
+  leadTime       String?         @map("lead_time") @db.VarChar(100)
+  /// 产品主图地址
+  imageUrl       String?         @map("image_url") @db.VarChar(500)
+  /// 展示排序值，数值越小越靠前
+  sortOrder      Int             @default(0) @map("sort_order")
+  /// SEO 标题
+  seoTitle       String?         @map("seo_title") @db.VarChar(255)
+  /// SEO 描述
+  seoDescription String?         @map("seo_description") @db.Text
+  /// 创建时间
+  createdAt      DateTime        @default(now()) @map("created_at")
+  /// 最后更新时间
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  /// 所属分类
+  category       ProductCategory @relation(fields: [categoryId], references: [id])
+  /// 多语言内容
+  translations   ProductTranslation[]
+  /// 产品规格
+  specifications ProductSpecification[]
+  /// 关联询盘
+  inquiries      Inquiry[]
+  /// 产品图片列表
+  images         ProductImage[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@map("products")
+}
+
+/// 产品图片表，支持 URL 图片和数据库 BLOB 图片两种存储方式
+model ProductImage {
+  /// 图片主键
+  id        Int      @id @default(autoincrement())
+  /// 产品主表 ID
+  productId Int      @map("product_id")
+  /// 图片展示顺序
+  sortOrder Int      @default(0) @map("sort_order")
+  /// 是否为产品主图
+  isPrimary Boolean  @default(false) @map("is_primary")
+  /// 图片 URL 地址，BLOB 不存在时作为兜底
+  imageUrl  String?  @map("image_url") @db.VarChar(1000)
+  /// 图片 MIME 类型，例如 image/jpeg
+  mimeType  String?  @map("mime_type") @db.VarChar(100)
+  /// 图片二进制内容，优先于 imageUrl 使用
+  imageBlob Bytes?   @map("image_blob") @db.MediumBlob
+  /// 图片替代文本
+  altText   String?  @map("alt_text") @db.VarChar(255)
+  /// 创建时间
+  createdAt DateTime @default(now()) @map("created_at")
+  /// 关联产品
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@unique([productId, sortOrder])
+  @@map("product_images")
+}
+
+/// 产品多语言内容表
+model ProductTranslation {
+  /// 多语言记录主键
+  id                Int     @id @default(autoincrement())
+  /// 产品主表 ID
+  productId         Int     @map("product_id")
+  /// 语言代码，例如 en、zh
+  language          String  @db.VarChar(10)
+  /// 产品名称
+  name              String  @db.VarChar(190)
+  /// 产品简短描述
+  shortDescription  String? @map("short_description") @db.Text
+  /// 产品详细描述
+  description       String? @db.Text
+  /// 产品应用场景
+  applications      String? @db.Text
+  /// 产品包装说明
+  packaging         String? @db.Text
+  /// 关联产品
+  product           Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, language])
+  @@index([language])
+  @@map("product_translations")
+}
+
+/// 产品规格参数表
+model ProductSpecification {
+  /// 规格主键
+  id        Int     @id @default(autoincrement())
+  /// 产品主表 ID
+  productId Int     @map("product_id")
+  /// 规格展示顺序
+  sortOrder Int     @default(0) @map("sort_order")
+  /// 参数名称，例如 Material
+  label     String  @db.VarChar(100)
+  /// 参数值，例如 Stainless Steel 304
+  value     String  @db.VarChar(255)
+  /// 关联产品
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_specifications")
+}
+
+/// 客户询盘表
+model Inquiry {
+  /// 询盘主键
+  id             Int           @id @default(autoincrement())
+  /// 客户姓名
+  name           String        @db.VarChar(120)
+  /// 客户公司名称
+  company        String?       @db.VarChar(190)
+  /// 客户邮箱
+  email          String        @db.VarChar(190)
+  /// WhatsApp 或电话
+  whatsapp       String?       @db.VarChar(80)
+  /// 客户所在国家
+  country        String?       @db.VarChar(100)
+  /// 预计采购数量
+  quantity       String?       @db.VarChar(100)
+  /// 客户规格要求
+  specification  String?       @db.Text
+  /// 客户留言
+  message        String        @db.Text
+  /// 询盘状态：新询盘、处理中、已回复、已关闭
+  status         InquiryStatus @default(NEW)
+  /// 关联产品 ID，可为空
+  productId      Int?          @map("product_id")
+  /// 提交时间
+  createdAt      DateTime      @default(now()) @map("created_at")
+  /// 最后更新时间
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  /// 关联产品
+  product        Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// 询盘附件
+  attachments    InquiryAttachment[]
+  /// 询盘处理记录
+  notes          InquiryNote[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("inquiries")
+}
+
+/// 询盘附件表，支持 URL 和数据库 BLOB 两种存储方式
+model InquiryAttachment {
+  /// 附件主键
+  id         Int      @id @default(autoincrement())
+  /// 询盘主表 ID
+  inquiryId  Int      @map("inquiry_id")
+  /// 原始文件名
+  fileName   String   @map("file_name") @db.VarChar(255)
+  /// 文件 MIME 类型
+  mimeType   String   @map("mime_type") @db.VarChar(120)
+  /// 文件大小，单位字节
+  fileSize   Int      @map("file_size")
+  /// 外部文件地址
+  fileUrl    String?  @map("file_url") @db.VarChar(1000)
+  /// 数据库二进制文件内容
+  fileBlob   Bytes?   @map("file_blob") @db.MediumBlob
+  /// 上传时间
+  createdAt  DateTime @default(now()) @map("created_at")
+  /// 关联询盘
+  inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId])
+  @@map("inquiry_attachments")
+}
+
+/// 询盘处理记录表
+model InquiryNote {
+  /// 记录主键
+  id          Int            @id @default(autoincrement())
+  /// 询盘主表 ID
+  inquiryId   Int            @map("inquiry_id")
+  /// 操作管理员 ID
+  adminUserId Int?           @map("admin_user_id")
+  /// 记录类型：内部备注或客户回复
+  type        InquiryNoteType @default(NOTE)
+  /// 记录内容
+  content     String         @db.Text
+  /// 创建时间
+  createdAt   DateTime       @default(now()) @map("created_at")
+  /// 关联询盘
+  inquiry     Inquiry        @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  /// 关联管理员
+  adminUser   AdminUser?     @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([inquiryId, createdAt])
+  @@map("inquiry_notes")
+}
+
+/// 公开页面内容表
+model SiteContent {
+  /// 内容主键
+  id          Int      @id @default(autoincrement())
+  /// 内容键，例如 home.hero.title
+  contentKey  String   @map("content_key") @db.VarChar(190)
+  /// 语言代码，例如 zh、en
+  language    String   @db.VarChar(10)
+  /// 内容值
+  content     String   @db.Text
+  /// 更新时间
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([contentKey, language])
+  @@index([language])
+  @@map("site_contents")
+}
+
+/// 网站设置表
+model SiteSetting {
+  /// 设置主键
+  id         Int      @id @default(autoincrement())
+  /// 设置键
+  settingKey String   @unique @map("setting_key") @db.VarChar(190)
+  /// 设置值
+  settingValue String? @map("setting_value") @db.Text
+  /// 更新时间
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
+
+/// 管理员操作日志表
+model OperationLog {
+  /// 日志主键
+  id          Int        @id @default(autoincrement())
+  /// 管理员 ID
+  adminUserId Int?       @map("admin_user_id")
+  /// 操作类型
+  action      String     @db.VarChar(100)
+  /// 目标资源
+  resource    String?    @db.VarChar(100)
+  /// 目标资源 ID
+  resourceId  String?    @map("resource_id") @db.VarChar(100)
+  /// 操作摘要
+  summary     String?    @db.VarChar(500)
+  /// 创建时间
+  createdAt   DateTime   @default(now()) @map("created_at")
+  /// 关联管理员
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([adminUserId])
+  @@map("operation_logs")
+}
