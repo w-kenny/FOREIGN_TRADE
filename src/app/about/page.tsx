@@ -20,5 +20,5 @@ export default async function AboutPage() {
     </main>
   );
 
-  // 这是一个笔记
+  // 这是一个笔记2
 }
