@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -137,7 +137,7 @@ model ProductImage {
   /// 图片 MIME 类型，例如 image/jpeg
   mimeType  String?  @map("mime_type") @db.VarChar(100)
   /// 图片二进制内容，优先于 imageUrl 使用
-  imageBlob Bytes?   @map("image_blob") @db.MediumBlob
+  imageBlob Bytes?   @map("image_blob")
   /// 图片替代文本
   altText   String?  @map("alt_text") @db.VarChar(255)
   /// 创建时间
@@ -250,7 +250,7 @@ model InquiryAttachment {
   /// 外部文件地址
   fileUrl    String?  @map("file_url") @db.VarChar(1000)
   /// 数据库二进制文件内容
-  fileBlob   Bytes?   @map("file_blob") @db.MediumBlob
+  fileBlob   Bytes?   @map("file_blob")
   /// 上传时间
   createdAt  DateTime @default(now()) @map("created_at")
   /// 关联询盘

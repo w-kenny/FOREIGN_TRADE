@@ -10,7 +10,8 @@
     "test": "tsx --test src/lib/validation.test.ts src/lib/routes.test.ts",
     "test:integration": "tsx --test src/lib/smoke.integration.test.ts",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
+    "db:push": "prisma migrate deploy",
+    "db:migrate:mysql-to-postgres": "tsx scripts/migrate-mysql-to-postgres.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
@@ -27,10 +28,13 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^16.4.3",
+    "mysql2": "^3.24.6",
+    "pg": "^8.23.1",
     "prisma": "^6.19.0",
     "tsx": "^4.20.6",
     "typescript": "^5"
